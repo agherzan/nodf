@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+
+#
+# ** The MIT License **
+#
+# Copyright (c) 2013 Andrei Gherzan
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
+#
+# Home: https://github.com/agherzan/nodf
+#
+# Author: Andrei Gherzan <andrei@gherzan.ro>
+#
+
+# Default variables
+REPO = '~/dotfilesrepo'
+PATH = '~/dotfilespath'
+
+try:
+    import os
+    import git
+    import argparse
+    import sys
+    from argparse import ArgumentParser
+    import logging
+    from colorlogging import ColoredFormatter
+except:
+    print "ERROR : Can't load at least one module. Please follow README first."
+    sys.exit(1)
+
+def clonefunc(args, log):
+    '''
+    Command clones a repository in 'repo'
+    This path can be configured at runtime or defaults to REPO.
+    '''
+    if not os.path.isdir(args.repo):
+        try:
+            os.makedirs(args.repo)
+        except:
+            log.error("%s doesn't exist and cannot be created." % args.repo)
+            sys.exit(1)
+    log.info("git clone %s in %s" %(args.repository, args.repo))
+    if not args.dryrun:
+        try:
+            git.cmd.Git(args.repo).clone(args.repository, args.repo)
+        except Exception as e:
+            log.error("Can't clone in %s." % args.repo)
+            sys.exit(1)
+    else:
+        log.debug("Not actually cloned - dry run.")
+
+def pullfunc(args, log):
+    log.info("git pull in %s." % args.repo)
+    g = git.cmd.Git(args.repo)
+    g.pull()
+
+def listfunc(args, log):
+    g = git.cmd.Git(args.repo)
+    log.info("%s cloned from [%s]." % (args.repo, g.config('remote.origin.url')))
+    pass
+
+def statusfunc(args, log):
+    g = git.cmd.Git(args.repo)
+    log.info("\n%s" % g.status())
+
+def trackfunc(args, log):
+    log.warn("Command not implemented yet.")
+    pass
+
+def symlinkfunc(args, log):
+    if not os.path.exists(args.repo):
+        log.error("There is no repository.")
+        sys.exit(1)
+    for root, dirs, files in os.walk(args.repo):
+        if '.git' in dirs:
+            dirs.remove('.git')
+        for file in files:
+            source = root + '/' + file
+            repofile = os.path.relpath(source, args.repo)
+            name = args.path + "/" + repofile
+            log.info('Symlinking %s -> %s.' % (name, source))
+            if not args.dryrun:
+                if not os.path.exists(os.path.dirname(name)):
+                   os.makedirs(os.path.dirname(name))
+                if os.path.exists(name):
+                    log.warning('Skipping %s -> %s.' % (name, source))
+                else:
+                    os.symlink(source, name)
+            else:
+                log.debug("Not actually symlinking - dry run.")
+
+def main():
+    '''
+    Main
+    '''
+
+    # Parse arguments
+    parser = ArgumentParser(add_help=False, version = '1.0a', description=DESCRIPTION)
+    parser.add_argument('-h', '--help', action='help',
+                      help = 'Print this message and exit')
+    parser.add_argument('-d', '--debug', action="store_true", dest = 'debug', default = False,
+                      help = 'Run in debug mode')
+    parser.add_argument('-r', '--repo', default = REPO,
+                      help = 'Repo directory to be used. Default: ' + REPO)
+    parser.add_argument('-p' , '--path', default = PATH,
+                      help = 'Root path of the files to be where we create symlinks. Default : ' + PATH)
+    parser.add_argument('--dry-run', action = 'store_true', dest = 'dryrun', default = False,
+                      help = "Don't actually run command")
+    parser.add_argument('-n', '--no-colors', action = 'store_false', dest = 'colors', default = True,
+                      help = "Don't actually run command")
+    # Commands
+    subparsers = parser.add_subparsers(title = 'Commands',
+        description = 'Commands to manipulate files. \
+                       Run comand -h to see help for each command.')
+    clone = subparsers.add_parser('clone', help='Clone repository')
+    clone.add_argument('repository', help='Repository to be cloned')
+    clone.set_defaults(func=clonefunc)
+    pull = subparsers.add_parser('pull', help='Pull repository')
+    pull.set_defaults(func=pullfunc)
+    list = subparsers.add_parser('list', help='List repository')
+    list.set_defaults(func=listfunc)
+    status = subparsers.add_parser('status', help='Check repository status')
+    status.set_defaults(func=statusfunc)
+    track = subparsers.add_parser('track', help='Track files')
+    track.add_argument('files', help='Files to be tracked')
+    track.set_defaults(func=trackfunc)
+    symlink = subparsers.add_parser('symlink', help='Symlink repository')
+    symlink.set_defaults(func=symlinkfunc)
+
+    args = parser.parse_args()
+
+    # Logger
+    log = logging.getLogger()
+    log.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setFormatter(ColoredFormatter(args.colors))
+    log.addHandler(ch)
+
+    # Expand paths
+    args.path = os.path.normpath(os.path.expanduser(args.path))
+    args.repo = os.path.normpath(os.path.expanduser(args.repo))
+
+    if args.debug:
+        log.setLevel(logging.DEBUG)
+        log.debug("Running in debug/verbose mode.")
+
+    args.func(args, log)
+
+if __name__ == "__main__":
+    main()
