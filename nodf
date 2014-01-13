@@ -40,6 +40,8 @@ try:
     import git
     import argparse
     import sys
+    import difflib
+    import time
     from argparse import ArgumentParser
     import logging
     from colorlogging import ColoredFormatter
@@ -47,6 +49,17 @@ except:
     print "ERROR : Can't load at least one module. Please follow README first."
     sys.exit(1)
 
+def getInput(valids = [], log = None):
+    '''
+    Return a valid user option
+    '''
+    if not valids:
+        return
+    sys.stdout.write("Selection: ")
+    s = raw_input()
+    while not s in valids:
+        s = raw_input("Wrong selection [" + '|'.join(valids)  + "]: ")
+    return s
 
 def RepoExists(repo):
     '''
@@ -145,11 +158,38 @@ def symlinkfunc(args, log):
             sourcerepo = os.path.relpath(source, args.repo) # source relative to repo
             name = args.path + "/" + sourcerepo
             log.debug('Symlinking %s -> %s.' % (source, name))
-            if not os.path.exists(os.path.dirname(name)):
-                os.makedirs(os.path.dirname(name))
             if os.path.exists(name):
-                log.warning('Skipping %s -> %s.' % (file, args.path))
-            else:
+                if os.path.realpath(name) == source:
+                    log.warning('%s already symlinked.' % file)
+                    continue
+                log.warning('Conflict %s already exists. [A]bort [S]kip [D]iff [F]ix ? ' % file)
+                selection = getInput(['A', 'S', 'D', 'F'], log)
+                while selection == 'D':
+                    sourcedate = time.ctime(os.stat(source).st_mtime)
+                    namedate = time.ctime(os.stat(name).st_mtime)
+                    sourcelines = open(source, 'U').readlines()
+                    namelines = open(name, 'U').readlines()
+                    #diff = difflib.context_diff(sourcelines, namelines, source, name,
+                    #                        sourcedate, namedate, n=3)
+                    diff = difflib.ndiff(sourcelines, namelines)
+                    sys.stdout.writelines(diff)
+                    selection = getInput(['A', 'S', 'D', 'F'], log)
+                if selection == 'A':
+                    return True
+                elif selection == 'S':
+                    continue
+                elif selection == 'F':
+                    try:
+                        if not args.dryrun:
+                            os.remove(name)
+                    except:
+                        log.error("Can't remove %s .")
+                        continue
+            if not os.path.exists(os.path.dirname(name)):
+                if not args.dryrun:
+                    os.makedirs(os.path.dirname(name))
+            log.info('Symlinking %s .' % file)
+            if not args.dryrun:
                 os.symlink(source, name)
     return True
 
@@ -157,7 +197,6 @@ def main():
     '''
     Main
     '''
-
     # Parse arguments
     parser = ArgumentParser(add_help=False, version = '1.0a', description=DESCRIPTION)
     parser.add_argument('-h', '--help', action='help',
