@@ -47,66 +47,111 @@ except:
     print "ERROR : Can't load at least one module. Please follow README first."
     sys.exit(1)
 
+
+def RepoExists(repo):
+    '''
+    Check if a path contains a repository
+    '''
+    if os.path.isdir(repo + '/.git'):
+        return True
+    return False
+
 def clonefunc(args, log):
     '''
     Command clones a repository in 'repo'
     This path can be configured at runtime or defaults to REPO.
     '''
-    if not os.path.isdir(args.repo):
-        try:
-            os.makedirs(args.repo)
-        except:
-            log.error("%s doesn't exist and cannot be created." % args.repo)
-            sys.exit(1)
-    log.info("git clone %s in %s" %(args.repository, args.repo))
+    log.info("git clone %s in %s ." %(args.repository, args.repo))
+    if RepoExists(args.repo):
+        log.warning("There is already a repository in %s ." % args.repo)
+        return True
     if not args.dryrun:
+        if not os.path.isdir(args.repo):
+            try:
+                os.makedirs(args.repo)
+            except:
+                log.error("The path %s doesn't exist and cannot be created." % args.repo)
+                return False
         try:
             git.cmd.Git(args.repo).clone(args.repository, args.repo)
         except Exception as e:
             log.error("Can't clone in %s." % args.repo)
-            sys.exit(1)
+            return False
     else:
-        log.debug("Not actually cloned - dry run.")
+        log.debug("Not actually cloning, just dry run.")
+    return True
 
 def pullfunc(args, log):
+    '''
+    Pull repository for remote changes (example have the same repository on
+    multiple machines).
+    '''
+    if not RepoExists(args.repo):
+        log.error("There is no %s repository." % args.repo)
+        return False
     log.info("git pull in %s." % args.repo)
     g = git.cmd.Git(args.repo)
-    g.pull()
+    if not args.dryrun:
+        g.pull()
+    else:
+        log.debug("Not actually pulling, just dry run.")
+    return True
 
 def listfunc(args, log):
-    g = git.cmd.Git(args.repo)
-    log.info("%s cloned from [%s]." % (args.repo, g.config('remote.origin.url')))
-    pass
+    '''
+    List remote in the repository
+    '''
+    try:
+        g = git.cmd.Git(args.repo)
+        remote = g.config('remote.origin.url')
+    except:
+        log.warn("No origin remote found in %s repository." % args.repo)
+        return False
+    log.info("%s cloned from [%s]." % (args.repo, remote))
+    return True
 
 def statusfunc(args, log):
+    '''
+    Git status in the repository
+    '''
+    if not RepoExists(args.repo):
+        log.error("There is no %s repository." % args.repo)
+        return False
     g = git.cmd.Git(args.repo)
-    log.info("\n%s" % g.status())
+    log.info("%s" % g.status())
+    return True
 
 def trackfunc(args, log):
     log.warn("Command not implemented yet.")
-    pass
+    return True
 
 def symlinkfunc(args, log):
+    '''
+    Go through all files in repo and create corespondent symlinks in path
+    '''
+    if not RepoExists(args.repo):
+        log.error("There is no %s repository." % args.repo)
+        return False
+    log.debug("Symlink command on %s repository." % args.repo)
     if not os.path.exists(args.repo):
-        log.error("There is no repository.")
+        log.error("There is no %s repository." % args.repo)
         sys.exit(1)
     for root, dirs, files in os.walk(args.repo):
+        # Don't go in .git - obviously
         if '.git' in dirs:
             dirs.remove('.git')
         for file in files:
             source = root + '/' + file
-            repofile = os.path.relpath(source, args.repo)
-            name = args.path + "/" + repofile
-            log.info('Symlinking %s -> %s.' % (name, source))
-            if not args.dryrun:
-                if not os.path.exists(os.path.dirname(name)):
-                   os.makedirs(os.path.dirname(name))
-                if os.path.exists(name):
-                    log.warning('Skipping %s -> %s.' % (name, source))
-                else:
-                    os.symlink(source, name)
+            sourcerepo = os.path.relpath(source, args.repo) # source relative to repo
+            name = args.path + "/" + sourcerepo
+            log.debug('Symlinking %s -> %s.' % (source, name))
+            if not os.path.exists(os.path.dirname(name)):
+                os.makedirs(os.path.dirname(name))
+            if os.path.exists(name):
+                log.warning('Skipping %s -> %s.' % (file, args.path))
             else:
-                log.debug("Not actually symlinking - dry run.")
+                os.symlink(source, name)
+    return True
 
 def main():
     '''
@@ -163,7 +208,9 @@ def main():
         log.setLevel(logging.DEBUG)
         log.debug("Running in debug/verbose mode.")
 
-    args.func(args, log)
+    if not args.func(args, log):
+        log.debug("Return exit code 1 as command failed.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
