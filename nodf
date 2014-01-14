@@ -153,10 +153,14 @@ def pullfunc(args, log):
     if not RepoExists(args.repo):
         log.error("There is no %s repository." % args.repo)
         return False
-    log.info("git pull in %s." % args.repo)
-    g = git.cmd.Git(args.repo)
+    log.info("git pull in %s ." % args.repo)
     if not args.dryrun:
-        g.pull()
+        try:
+            g = git.cmd.Git(args.repo)
+            g.pull()
+        except:
+            log.error("Can't pull in %s ." % args.repo)
+            return False
     else:
         log.debug("Not actually pulling, just dry run.")
     return True
