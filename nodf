@@ -300,8 +300,6 @@ def main():
                       help = "Don't actually run command")
     parser.add_argument('-n', '--no-colors', action = 'store_false', dest = 'colors', default = True,
                       help = "Don't use any colors")
-    parser.add_argument('-b', '--backup-ext', default = BACKUPEXT, dest = 'backupext',
-                      help = 'Extension to be used when backup conflicting files. Default: ' + BACKUPEXT)
     # Commands
     subparsers = parser.add_subparsers(title = 'Commands',
         description = 'Commands to manipulate files. \
