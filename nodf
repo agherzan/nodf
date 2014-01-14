@@ -32,8 +32,7 @@ DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
 #
 
 # Default variables
-REPO = '~/dotfilesrepo'
-PATH = '~/dotfilespath'
+REPOSITORY = '~/dotfilesrepository'
 BACKUPEXT = 'bak'
 
 try:
@@ -62,6 +61,57 @@ def getInput(valids = [], log = None):
         s = raw_input("Wrong selection [" + '|'.join(valids)  + "]: ")
     return s
 
+def ResolveConflict(source, destination, args, log):
+    '''
+    Resolve conflict between 2 files interactively
+
+    Return
+        * False if file1 should not be copied in file2
+        * True otherwise.
+    '''
+    # If both files are the same no need to do anything
+    if os.path.realpath(destination) == source:
+        log.debug('%s already symlinked.' % source)
+        return False
+
+    log.warning('Conflict %s already exists.' % source)
+    log.warning('[A]bort [S]kip [D]iff [F]ix Fix[B]utBackup ? ')
+
+    # Diff option
+    selection = getInput(['A', 'S', 'D', 'F', 'B'], log)
+    while selection == 'D':
+        sourcelines = open(source, 'U').readlines()
+        destinationlines = open(destination, 'U').readlines()
+        '''sourcedate = time.ctime(os.stat(source).st_mtime)
+        namedate = time.ctime(os.stat(name).st_mtime)
+        diff = difflib.context_diff(sourcelines, namelines, source, name,
+                               sourcedate, namedate, n=3)'''
+        diff = difflib.ndiff(sourcelines, destinationlines)
+        sys.stdout.writelines(diff)
+        selection = getInput(['A', 'S', 'D', 'F', 'B'], log)
+
+    # Other options
+    if selection == 'A':
+        sys.exit(0)
+    elif selection == 'S':
+        return False
+    elif selection == 'F':
+        try:
+            if not args.dryrun:
+                os.remove(destination)
+        except:
+            log.error("Can't remove %s .")
+            return False
+    elif selection == 'B':
+        try:
+            if not args.dryrun:
+                os.rename(destination, destination + '.' + args.backupext)
+        except:
+            log.error("Can't rename %s to %s.%s .", destination, destination, args.backupext)
+            return False
+
+    return True
+
 def RepoExists(repo):
     '''
     Check if a path contains a repository
@@ -73,7 +123,7 @@ def RepoExists(repo):
 def clonefunc(args, log):
     '''
     Command clones a repository in 'repo'
-    This path can be configured at runtime or defaults to REPO.
+    This path can be configured at runtime or defaults to REPOSITORY.
     '''
     log.info("git clone %s in %s ." %(args.repository, args.repo))
     if RepoExists(args.repo):
@@ -136,7 +186,33 @@ def statusfunc(args, log):
     return True
 
 def trackfunc(args, log):
-    log.warn("Command not implemented yet.")
+    '''
+    Track one ore more file in repository
+    Copy all files in repository and create symlinks to new files
+    '''
+    for file in args.files:
+        # Arbsolute and clean path to file
+        file = os.path.abspath(os.path.normpath(os.path.expanduser(file)))
+
+        if not os.path.isfile(file):
+            log.warn("File %s does not exist." % file)
+            continue
+
+        repofile = args.repo + file
+
+        if os.path.isfile(repofile):
+            log.warn('File %s already exists in %s.' %(file, args.repo))
+            continue
+
+        log.info('Tracking %s in %s.' %(file, args.repo))
+
+        if os.path.exists(repofile):
+            if ResolveConflict(file, repofile, args, log) == False:
+                continue
+
+        if not args.dryrun:
+                os.renames(file, repofile)
+                os.symlink(repofile, file)
     return True
 
 def symlinkfunc(args, log):
@@ -157,49 +233,45 @@ def symlinkfunc(args, log):
         for file in files:
             source = root + '/' + file
             sourcerepo = os.path.relpath(source, args.repo) # source relative to repo
-            name = args.path + "/" + sourcerepo
+            name = '/' + sourcerepo
             log.debug('Symlinking %s -> %s.' % (source, name))
             if os.path.exists(name):
-                if os.path.realpath(name) == source:
-                    log.warning('%s already symlinked.' % file)
+                if ResolveConflict(source, name, args, log) == False:
                     continue
-                log.warning('Conflict %s already exists. [A]bort [S]kip [D]iff [F]ix Fix[B]utBackup ? ' % file)
-                selection = getInput(['A', 'S', 'D', 'F', 'B'], log)
-                while selection == 'D':
-                    sourcedate = time.ctime(os.stat(source).st_mtime)
-                    namedate = time.ctime(os.stat(name).st_mtime)
-                    sourcelines = open(source, 'U').readlines()
-                    namelines = open(name, 'U').readlines()
-                    #diff = difflib.context_diff(sourcelines, namelines, source, name,
-                    #                        sourcedate, namedate, n=3)
-                    diff = difflib.ndiff(sourcelines, namelines)
-                    sys.stdout.writelines(diff)
-                    selection = getInput(['A', 'S', 'D', 'F', 'B'], log)
-                if selection == 'A':
-                    return True
-                elif selection == 'S':
-                    continue
-                elif selection == 'F':
-                    try:
-                        if not args.dryrun:
-                            os.remove(name)
-                    except:
-                        log.error("Can't remove %s .")
-                        continue
-                elif selection == 'B':
-                    try:
-                        if not args.dryrun:
-                            os.rename(name, name + '.' + args.backupext)
-                    except:
-                        log.error("Can't rename %s to %s.%s .", name, name, backupext)
-                        continue
+            log.info('Symlinking %s .' % file)
             if not os.path.exists(os.path.dirname(name)):
                 if not args.dryrun:
-                    os.makedirs(os.path.dirname(name))
-            log.info('Symlinking %s .' % file)
+                    try:
+                        os.makedirs(os.path.dirname(name))
+                    except:
+                        log.error("Can't create symlink in %s ." % name)
+                        continue
             if not args.dryrun:
-                os.symlink(source, name)
+                try:
+                    os.symlink(source, name)
+                except:
+                    log.error("Can't create symlink in %s ." % name)
     return True
+
+def initfunc(args, log):
+    '''
+    Init repository in user defined repo path or in default one
+    '''
+    if os.path.exists(args.repo):
+        if os.listdir(args.repo):
+            log.error("Repository path %s already exists and is not empty." % args.repo)
+            return False
+    else:
+        if not args.dryrun:
+            os.mkdir(args.repo)
+
+    log.info("Initializing repository in %s ." % args.repo)
+    try:
+        if not args.dryrun:
+            g = git.cmd.Git(args.repo)
+            g.init()
+    except:
+        log.error("Can't init repository in %s ." % args.repo)
 
 def main():
     '''
@@ -211,10 +283,8 @@ def main():
                       help = 'Print this message and exit')
     parser.add_argument('-d', '--debug', action="store_true", dest = 'debug', default = False,
                       help = 'Run in debug mode')
-    parser.add_argument('-r', '--repo', default = REPO, dest = 'repo',
-                      help = 'Repo directory to be used. Default: ' + REPO)
-    parser.add_argument('-p' , '--path', default = PATH,
-                      help = 'Root path of the files to be where we create symlinks. Default : ' + PATH)
+    parser.add_argument('-r', '--repo', default = REPOSITORY, dest = 'repo',
+                      help = 'Repo directory to be used. Default: ' + REPOSITORY)
     parser.add_argument('--dry-run', action = 'store_true', dest = 'dryrun', default = False,
                       help = "Don't actually run command")
     parser.add_argument('-n', '--no-colors', action = 'store_false', dest = 'colors', default = True,
@@ -235,10 +305,12 @@ def main():
     status = subparsers.add_parser('status', help='Check repository status')
     status.set_defaults(func=statusfunc)
     track = subparsers.add_parser('track', help='Track files')
-    track.add_argument('files', help='Files to be tracked')
+    track.add_argument('files', nargs='+', help='Files to be tracked')
     track.set_defaults(func=trackfunc)
     symlink = subparsers.add_parser('symlink', help='Symlink repository')
     symlink.set_defaults(func=symlinkfunc)
+    init = subparsers.add_parser('init', help='Init repository')
+    init.set_defaults(func=initfunc)
 
     args = parser.parse_args()
 
@@ -250,7 +322,6 @@ def main():
     log.addHandler(ch)
 
     # Expand paths
-    args.path = os.path.normpath(os.path.expanduser(args.path))
     args.repo = os.path.normpath(os.path.expanduser(args.repo))
 
     if args.debug:
