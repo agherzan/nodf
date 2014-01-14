@@ -34,6 +34,7 @@ DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
 # Default variables
 REPOSITORY = '~/dotfilesrepository'
 BACKUPEXT = 'bak'
+HOME = '~'
 
 try:
     import os
@@ -70,7 +71,7 @@ def ResolveConflict(source, destination, args, log):
         * True otherwise.
     '''
     # If both files are the same no need to do anything
-    if os.path.realpath(destination) == source:
+    if os.path.realpath(destination) == os.path.realpath(source):
         log.debug('%s already symlinked.' % source)
         return False
 
@@ -202,7 +203,11 @@ def trackfunc(args, log):
             log.warn("File %s does not exist." % file)
             continue
 
-        repofile = args.repo + file
+        repofile = args.repo + '/' + os.path.relpath(file, args.home)
+        repofile = os.path.abspath(os.path.normpath(repofile))
+        if not args.home in repofile:
+            log.warn("File %s not in home directory." % file)
+            continue
 
         log.info('Tracking %s in %s.' %(file, args.repo))
 
@@ -211,8 +216,14 @@ def trackfunc(args, log):
                 continue
 
         if not args.dryrun:
-                os.renames(file, repofile)
-                os.symlink(repofile, file)
+                try:
+                    os.renames(file, repofile)
+                    if not os.path.exists(os.path.dirname(file)):
+                        os.makedirs(os.path.dirname(file))
+                    os.symlink(repofile, file)
+                except Exception as e:
+                    log.error("Can't track %s ." % (file))
+                    continue
     return True
 
 def symlinkfunc(args, log):
@@ -233,7 +244,7 @@ def symlinkfunc(args, log):
         for file in files:
             source = root + '/' + file
             sourcerepo = os.path.relpath(source, args.repo) # source relative to repo
-            name = '/' + sourcerepo
+            name = args.home + '/' + sourcerepo
             log.debug('Symlinking %s -> %s.' % (source, name))
             if os.path.exists(name):
                 if ResolveConflict(source, name, args, log) == False:
@@ -327,6 +338,7 @@ def main():
 
     # Expand paths
     args.repo = os.path.normpath(os.path.expanduser(args.repo))
+    args.home = os.path.normpath(os.path.expanduser(HOME))
 
     if args.debug:
         log.setLevel(logging.DEBUG)
