@@ -32,7 +32,7 @@ DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
 #
 
 # Default variables
-REPOSITORY = '~/dotfilesrepository'
+REPOSITORY = '~/dotfiles'
 BACKUPEXT = 'bak'
 HOME = '~'
 
