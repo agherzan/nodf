@@ -204,10 +204,6 @@ def trackfunc(args, log):
 
         repofile = args.repo + file
 
-        if os.path.isfile(repofile):
-            log.warn('File %s already exists in %s.' %(file, args.repo))
-            continue
-
         log.info('Tracking %s in %s.' %(file, args.repo))
 
         if os.path.exists(repofile):
@@ -292,7 +288,7 @@ def main():
     parser.add_argument('--dry-run', action = 'store_true', dest = 'dryrun', default = False,
                       help = "Don't actually run command")
     parser.add_argument('-n', '--no-colors', action = 'store_false', dest = 'colors', default = True,
-                      help = "Don't actually run command")
+                      help = "Don't use any colors")
     parser.add_argument('-b', '--backup-ext', default = BACKUPEXT, dest = 'backupext',
                       help = 'Extension to be used when backup conflicting files. Default: ' + BACKUPEXT)
     # Commands
@@ -310,8 +306,12 @@ def main():
     status.set_defaults(func=statusfunc)
     track = subparsers.add_parser('track', help='Track files')
     track.add_argument('files', nargs='+', help='Files to be tracked')
+    track.add_argument('-b', '--backup-ext', default = BACKUPEXT, dest = 'backupext',
+                      help = 'Extension to be used when backup conflicting files. Default: ' + BACKUPEXT)
     track.set_defaults(func=trackfunc)
     symlink = subparsers.add_parser('symlink', help='Symlink repository')
+    symlink.add_argument('-b', '--backup-ext', default = BACKUPEXT, dest = 'backupext',
+                      help = 'Extension to be used when backup conflicting files. Default: ' + BACKUPEXT)
     symlink.set_defaults(func=symlinkfunc)
     init = subparsers.add_parser('init', help='Init repository')
     init.set_defaults(func=initfunc)
