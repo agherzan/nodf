@@ -23,11 +23,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-#
-DESCRIPTION = " \
-    A tool to be used for managing and storing dotfiles but coded to be able \
-    to accomodate any kind of files."
-#
 # Home: https://github.com/agherzan/nodf
 #
 # Author: Andrei Gherzan <andrei@gherzan.ro>
@@ -47,7 +42,9 @@ try:
     import time
     from argparse import ArgumentParser
     import logging
+
     from colorlogging import ColoredFormatter
+    import nodfmeta
 except:
     print "ERROR : Can't load at least one module. Please follow README first."
     sys.exit(1)
@@ -321,7 +318,7 @@ def main():
     Main
     '''
     # Parse arguments
-    parser = ArgumentParser(add_help=False, version = '1.0a', description=DESCRIPTION)
+    parser = ArgumentParser(add_help=False, version = nodfmeta.version, description=nodfmeta.description)
     parser.add_argument('-h', '--help', action='help',
                       help = 'Print this message and exit')
     parser.add_argument('-d', '--debug', action="store_true", dest = 'debug', default = False,

@@ -24,7 +24,7 @@
 # SOFTWARE.
 #
 #
-# TODO: DESCRIPTION
+# Helper for logging module to be able to use colors
 #
 # Home: https://github.com/agherzan/nodf
 #
