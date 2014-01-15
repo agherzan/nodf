@@ -24,7 +24,9 @@
 # SOFTWARE.
 #
 #
-DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
+DESCRIPTION = " \
+    A tool to be used for managing and storing dotfiles but coded to be able \
+    to accomodate any kind of files."
 #
 # Home: https://github.com/agherzan/nodf
 #
@@ -32,7 +34,7 @@ DESCRIPTION = "A utility to be used for managing dotfiles... and not only."
 #
 
 # Default variables
-REPOSITORY = '~/dotfiles'
+REPOSITORYPATH = '~/dotfiles'
 BACKUPEXT = 'bak'
 HOME = '~'
 
@@ -52,7 +54,9 @@ except:
 
 def getInput(valids = [], log = None):
     '''
-    Return a valid user option
+    Function used to get user input which must be one of the ones in 'valids'.
+    Return
+        * user input.
     '''
     if not valids:
         return
@@ -67,8 +71,9 @@ def ResolveConflict(source, destination, args, log):
     Resolve conflict between 2 files interactively
 
     Return
-        * False if file1 should not be copied in file2
-        * True otherwise.
+        * False if file1 should not be copied over file2
+          Ex.: If user requested or errors were encountered.
+        * True if file should be copied over file2.
     '''
     # If both files are the same no need to do anything
     if os.path.realpath(destination) == os.path.realpath(source):
@@ -83,16 +88,13 @@ def ResolveConflict(source, destination, args, log):
     while selection == 'D':
         sourcelines = open(source, 'U').readlines()
         destinationlines = open(destination, 'U').readlines()
-        '''sourcedate = time.ctime(os.stat(source).st_mtime)
-        namedate = time.ctime(os.stat(name).st_mtime)
-        diff = difflib.context_diff(sourcelines, namelines, source, name,
-                               sourcedate, namedate, n=3)'''
         diff = difflib.ndiff(sourcelines, destinationlines)
         sys.stdout.writelines(diff)
         selection = getInput(['A', 'S', 'D', 'F', 'B'], log)
 
     # Other options
     if selection == 'A':
+        # TODO - this is an ugly exit
         sys.exit(0)
     elif selection == 'S':
         return False
@@ -113,54 +115,64 @@ def ResolveConflict(source, destination, args, log):
 
     return True
 
-def RepoExists(repo):
+def RepoExists(path):
     '''
     Check if a path contains a repository
     '''
-    if os.path.isdir(repo + '/.git'):
+    # Easiest way would be to check if path contains .git directory
+    # This is not the safest way to do it but I think it should be ok for our
+    # use case.
+    if os.path.isdir(path + '/.git'):
         return True
     return False
 
 def clonefunc(args, log):
     '''
-    Command clones a repository in 'repo'
-    This path can be configured at runtime or defaults to REPOSITORY.
+    Command clones a repository in 'args.repopath'
+    This path can be configured at runtime or defaults to REPOSITORYPATH.
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
-    log.info("git clone %s in %s ." %(args.repository, args.repo))
-    if RepoExists(args.repo):
-        log.warning("There is already a repository in %s ." % args.repo)
+    log.info("git clone %s in %s ." %(args.repository, args.repopath))
+    if RepoExists(args.repopath):
+        log.warning("There is already a repository in %s ." % args.repopath)
+        # This is not actually an error as maybe there is already the corect
+        # repository
         return True
     if not args.dryrun:
-        if not os.path.isdir(args.repo):
+        if not os.path.isdir(args.repopath):
             try:
-                os.makedirs(args.repo)
+                os.makedirs(args.repopath)
             except:
-                log.error("The path %s doesn't exist and cannot be created." % args.repo)
+                log.error("The path %s doesn't exist and cannot be created." % args.repopath)
                 return False
         try:
-            git.cmd.Git(args.repo).clone(args.repository, args.repo)
+            git.cmd.Git(args.repopath).clone(args.repository, args.repopath)
         except Exception as e:
-            log.error("Can't clone in %s." % args.repo)
+            log.error("Can't clone in %s." % args.repopath)
             return False
-    else:
-        log.debug("Not actually cloning, just dry run.")
     return True
 
 def pullfunc(args, log):
     '''
-    Pull repository for remote changes (example have the same repository on
-    multiple machines).
+    Pull repository for remote changes
+    Ex.: have the same repository on multiple machines.
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
-    if not RepoExists(args.repo):
-        log.error("There is no %s repository." % args.repo)
+    log.info("git pull in %s ." % args.repopath)
+    if not RepoExists(args.repopath):
+        log.error("There is no %s repository." % args.repopath)
         return False
-    log.info("git pull in %s ." % args.repo)
     if not args.dryrun:
         try:
-            g = git.cmd.Git(args.repo)
-            g.pull()
+            git.cmd.Git(args.repopath).pull()
         except:
-            log.error("Can't pull in %s ." % args.repo)
+            log.error("Can't pull in %s ." % args.repopath)
             return False
     else:
         log.debug("Not actually pulling, just dry run.")
@@ -168,121 +180,141 @@ def pullfunc(args, log):
 
 def listfunc(args, log):
     '''
-    List remote in the repository
+    List origin remote in the repository
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
+    log.info("Getting origin remote from %s ." % args.repopath)
     try:
-        g = git.cmd.Git(args.repo)
+        g = git.cmd.Git(args.repopath)
         remote = g.config('remote.origin.url')
     except:
-        log.warn("No origin remote found in %s repository." % args.repo)
+        log.warn("No origin remote found in %s repository." % args.repopath)
         return False
-    log.info("%s cloned from [%s]." % (args.repo, remote))
+    log.info("%s cloned from [%s]." % (args.repopath, remote))
     return True
 
 def statusfunc(args, log):
     '''
     Git status in the repository
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
-    if not RepoExists(args.repo):
-        log.error("There is no %s repository." % args.repo)
+    log.info("Checking repository status in %s ." % args.repopath)
+    if not RepoExists(args.repopath):
+        log.error("There is no %s repository." % args.repopath)
         return False
-    g = git.cmd.Git(args.repo)
+    g = git.cmd.Git(args.repopath)
     log.info("%s" % g.status())
     return True
 
 def trackfunc(args, log):
     '''
-    Track one ore more file in repository
-    Copy all files in repository and create symlinks to new files
+    Track one or more files in repository
+    Copy all files in repository and create symlinks in their old location
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
     for file in args.files:
+        log.info('Tracking %s in %s.' %(file, args.repopath))
+
         # Arbsolute and clean path to file
-        file = os.path.abspath(os.path.normpath(os.path.expanduser(file)))
+        file = os.path.abspath(os.path.normpath(file))
 
         if not os.path.isfile(file):
             log.warn("File %s does not exist." % file)
             continue
 
-        repofile = args.repo + '/' + os.path.relpath(file, args.home)
+        repofile = args.repopath + '/' + os.path.relpath(file, args.home)
         repofile = os.path.abspath(os.path.normpath(repofile))
+
         if not args.home in repofile:
             log.warn("File %s not in home directory." % file)
             continue
-
-        log.info('Tracking %s in %s.' %(file, args.repo))
 
         if os.path.exists(repofile):
             if ResolveConflict(file, repofile, args, log) == False:
                 continue
 
         if not args.dryrun:
-                try:
-                    os.renames(file, repofile)
-                    if not os.path.exists(os.path.dirname(file)):
-                        os.makedirs(os.path.dirname(file))
-                    os.symlink(repofile, file)
-                except Exception as e:
-                    log.error("Can't track %s ." % (file))
-                    continue
+            try:
+                os.renames(file, repofile)
+                if not os.path.exists(os.path.dirname(file)):
+                    os.makedirs(os.path.dirname(file))
+                os.symlink(repofile, file)
+            except:
+                log.warn("Can't track %s ." % (file))
+                continue
     return True
 
 def symlinkfunc(args, log):
     '''
     Go through all files in repo and create corespondent symlinks in path
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
-    if not RepoExists(args.repo):
-        log.error("There is no %s repository." % args.repo)
+    log.debug("Symlink command on %s repository." % args.repopath)
+
+    if not RepoExists(args.repopath):
+        log.error("There is no %s repository." % args.repopath)
         return False
-    log.debug("Symlink command on %s repository." % args.repo)
-    if not os.path.exists(args.repo):
-        log.error("There is no %s repository." % args.repo)
-        sys.exit(1)
-    for root, dirs, files in os.walk(args.repo):
+
+    for root, dirs, files in os.walk(args.repopath):
         # Don't go in .git - obviously
         if '.git' in dirs:
             dirs.remove('.git')
         for file in files:
-            source = root + '/' + file
-            sourcerepo = os.path.relpath(source, args.repo) # source relative to repo
-            name = args.home + '/' + sourcerepo
-            log.debug('Symlinking %s -> %s.' % (source, name))
-            if os.path.exists(name):
-                if ResolveConflict(source, name, args, log) == False:
-                    continue
             log.info('Symlinking %s .' % file)
-            if not os.path.exists(os.path.dirname(name)):
+            repofile = root + '/' + file
+            symlinkfile = args.home + '/' + os.path.relpath(repofile, args.repopath)
+            log.debug('Symlinking %s -> %s.' % (repofile, symlinkfile))
+            if os.path.exists(symlinkfile):
+                if ResolveConflict(repofile, symlinkfile, args, log) == False:
+                    continue
+            if not os.path.exists(os.path.dirname(symlinkfile)):
                 if not args.dryrun:
                     try:
-                        os.makedirs(os.path.dirname(name))
+                        os.makedirs(os.path.dirname(symlinkfile))
                     except:
-                        log.error("Can't create symlink in %s ." % name)
+                        log.error("Can't create symlink in %s ." % symlinkfile)
                         continue
             if not args.dryrun:
                 try:
-                    os.symlink(source, name)
+                    os.symlink(repofile, symlinkfile)
                 except:
-                    log.error("Can't create symlink in %s ." % name)
+                    log.error("Can't create symlink in %s ." % symlinkfile)
     return True
 
 def initfunc(args, log):
     '''
-    Init repository in user defined repo path or in default one
+    Initialize repository in args.repopath
+
+    Return:
+        * True if function succeeded
+        * False if function failed
     '''
-    if os.path.exists(args.repo):
-        if os.listdir(args.repo):
-            log.error("Repository path %s already exists and is not empty." % args.repo)
+    log.info("Initializing repository in %s ." % args.repopath)
+
+    if os.path.exists(args.repopath):
+        if os.listdir(args.repopath):
+            log.error("Repository path %s already exists and is not empty." % args.repopath)
             return False
     else:
         if not args.dryrun:
-            os.mkdir(args.repo)
-
-    log.info("Initializing repository in %s ." % args.repo)
+            os.mkdir(args.repopath)
     try:
         if not args.dryrun:
-            g = git.cmd.Git(args.repo)
-            g.init()
+            g = git.cmd.Git(args.repopath).init()
     except:
-        log.error("Can't init repository in %s ." % args.repo)
+        log.error("Can't initialize repository in %s ." % args.repopath)
 
 def main():
     '''
@@ -293,23 +325,23 @@ def main():
     parser.add_argument('-h', '--help', action='help',
                       help = 'Print this message and exit')
     parser.add_argument('-d', '--debug', action="store_true", dest = 'debug', default = False,
-                      help = 'Run in debug mode')
-    parser.add_argument('-r', '--repo', default = REPOSITORY, dest = 'repo',
-                      help = 'Repo directory to be used. Default: ' + REPOSITORY)
+                      help = 'Run in debug/verbose mode')
+    parser.add_argument('-r', '--repo', default = REPOSITORYPATH, dest = 'repopath',
+                      help = 'Repository path to be used. Default: ' + REPOSITORYPATH)
     parser.add_argument('--dry-run', action = 'store_true', dest = 'dryrun', default = False,
-                      help = "Don't actually run command")
+                      help = "Don't actually run commands")
     parser.add_argument('-n', '--no-colors', action = 'store_false', dest = 'colors', default = True,
                       help = "Don't use any colors")
     # Commands
     subparsers = parser.add_subparsers(title = 'Commands',
         description = 'Commands to manipulate files. \
-                       Run comand -h to see help for each command.')
+                       Run "nodf <comand> -h" to see help for each command.')
     clone = subparsers.add_parser('clone', help='Clone repository')
     clone.add_argument('repository', help='Repository to be cloned')
     clone.set_defaults(func=clonefunc)
     pull = subparsers.add_parser('pull', help='Pull repository')
     pull.set_defaults(func=pullfunc)
-    list = subparsers.add_parser('list', help='List repository')
+    list = subparsers.add_parser('list', help='List origin remote in repository')
     list.set_defaults(func=listfunc)
     status = subparsers.add_parser('status', help='Check repository status')
     status.set_defaults(func=statusfunc)
@@ -335,7 +367,7 @@ def main():
     log.addHandler(ch)
 
     # Expand paths
-    args.repo = os.path.normpath(os.path.expanduser(args.repo))
+    args.repopath = os.path.normpath(os.path.expanduser(args.repopath))
     args.home = os.path.normpath(os.path.expanduser(HOME))
 
     if args.debug:
