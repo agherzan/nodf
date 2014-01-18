@@ -8,7 +8,7 @@ A. Description
 ==============
 
 A tool to be used for managing and storing dotfiles but coded to be able
-to accomodate any kind of files
+to accommodate any kind of files
 
 B. Installation
 ===============
@@ -20,9 +20,12 @@ B. Installation
 C. How To Use
 =============
 
-Basically all fuctions should be clearly described in help: running nodf -h.
+Help (-h) should give you enough information about all the commands currently
+supported by this tool:
 
-To clone a repository run in the default location (which is ~/dotfiles):
+    $ nodf -h
+
+To clone a repository in the default location (which is ~/dotfiles), run:
 
     $ nodf clone <repo url>
 
@@ -35,19 +38,19 @@ repository using:
 
     $ nodf symlink
 
-Note that all files in dotfiles should be relative to home directory. So, for a file in
-~/dotfile/tmp/file, this will create a symlink in ~/tmp/file.
+Note that all files in dotfiles should be relative to home directory. So, for a
+file in ~/dotfile/tmp/file, this will create a symlink in ~/tmp/file.
 
-To track a new (or some) file:
+To track a new (or some) file(s):
 
     $ nodf track file1 file2
 
-This will actually move these files in dotfiles repository and create symlinks in their
-old location. You will probebly want to add/commit/push in dotfiles repository after
-this. Again, all files should be located in your HOME directory. Obviusly it doesn't
-matter if these files are actually dotfiles.
+This will actually move these files in dotfiles repository and create symlinks
+in their old location. You will probably want to add/commit/push in dotfiles
+repository after this. Again, all files should be located in your HOME
+directory. Obviously it doesn't matter if these files are actually dotfiles.
 
-To list the remote used as dotfiles repository:
+To list the remote origin dotfiles repository:
 
     $ nodf list
 
