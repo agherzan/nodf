@@ -43,10 +43,10 @@ try:
     from argparse import ArgumentParser
     import logging
 
-    from colorlogging import ColoredFormatter
-    import nodfmeta
+    from .colorlogging import ColoredFormatter
+    from .nodfmeta import *
 except:
-    print "ERROR : Can't load at least one module. Please follow README first."
+    print("ERROR : Can't load at least one module. Please follow README first.")
     sys.exit(1)
 
 def getInput(valids = [], log = None):
@@ -58,9 +58,9 @@ def getInput(valids = [], log = None):
     if not valids:
         return
     sys.stdout.write("Selection: ")
-    s = raw_input()
+    s = input()
     while not s in valids:
-        s = raw_input("Wrong selection [" + '|'.join(valids)  + "]: ")
+        s = input("Wrong selection [" + '|'.join(valids)  + "]: ")
     return s
 
 def ResolveConflict(source, destination, args, log):
@@ -318,7 +318,8 @@ def main():
     Main
     '''
     # Parse arguments
-    parser = ArgumentParser(add_help=False, version = nodfmeta.version, description=nodfmeta.description)
+    parser = ArgumentParser(add_help=False, description=description)
+    parser.add_argument('-v', '--version', action='version', version=version)
     parser.add_argument('-h', '--help', action='help',
                       help = 'Print this message and exit')
     parser.add_argument('-d', '--debug', action="store_true", dest = 'debug', default = False,
