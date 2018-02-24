@@ -372,9 +372,10 @@ def main():
         log.setLevel(logging.DEBUG)
         log.debug("Running in debug/verbose mode.")
 
-    if not args.func(args, log):
-        log.debug("Return exit code 1 as command failed.")
-        sys.exit(1)
+    if hasattr(args, 'func'):
+        if not args.func(args, log):
+            log.debug("Return exit code 1 as command failed.")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
